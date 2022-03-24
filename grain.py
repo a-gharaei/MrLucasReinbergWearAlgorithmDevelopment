@@ -20,6 +20,7 @@ class Grain2D:
         self.vertices = np.array([vertices])
         self.cutting_edge = hlp.get_vector_miny(self.vertices[-1])
         self.uppercrack = np.array([])
+        self.crackPlot = np.array([])
         self.penetration_depth = 0
         self.fractured = False
         self.fractures = 0
@@ -89,25 +90,45 @@ class Grain2D:
         rankine_stress = ((sigma_c + sigma_n) + sqrt((sigma_c - sigma_n)**2 + 4 * tau_s**2)) / 2
         return rankine_stress
     
-    
-    def crack_propagation(self) -> None:
-        """Calculates new crack point depending on the existing crack"""
-        crack_index = int(self.getCrackStart())
-        crack_base = hlp.get_vector(self.uppercrack[crack_index], self.uppercrack[crack_index + 1])
-        crack_base_length = np.linalg.norm(crack_base)
-        crack_direction = hlp.unit_vector(np.array([crack_base[1], -crack_base[0]]))
-        crack_length = random.uniform(0.5 * crack_base_length, crack_base_length)
-        crack_point = self.uppercrack[crack_index] + random.uniform(0.1*crack_base_length, 0.8*crack_base_length)* crack_base + crack_length * crack_direction
-        crack_point, finish = self.checkCrackFinish(crack_point)
-        self.uppercrack = hlp.numpyInsertPoint(self.uppercrack, crack_point, crack_index + 1)
-        new_vertices = hlp.numpyInsertArrayOfPoints(self.vertices[0], self.uppercrack, self.crack_start)
+
+    def initialCrack2(self) -> None:
+        pod_from_rf = random.uniform(2, 3) * self.find_contact_length() * hlp.unit_vector(self.rake_face_vector())
+        pod = self.rake_face[0] + pod_from_rf
+        self.pod = pod
+        crack_length = random.uniform(0.025*self.rake_face_length, 0.075*self.rake_face_length)
+        crack = pod + crack_length * self.ex
+        for index, value in enumerate(self.vertices[0]):
+            if (value-self.rake_face[0]).all:
+                self.crack_start = index + 1
+                break
+        self.uppercrack = hlp.numpyAppend(self.uppercrack, pod)
+        self.uppercrack = hlp.numpyAppend(self.uppercrack, crack)
+        uppercrack_rev = np.flip(self.uppercrack, axis=0)
+        self.crackPlot = hlp.numpyAppendArrayOfPoints(self.uppercrack, uppercrack_rev)
+        temp_vertices = hlp.numpyInsertArrayOfPoints(self.vertices[0], self.crackPlot, int(self.crack_start))
+        self.vertices = hlp.numpyAppend(self.vertices, temp_vertices)
+        self.fractured = True
+        self.fractures += 1
+
+
+    def crack_propagation2(self) -> None:
+        crack_length = random.uniform(0.025*self.rake_face_length, 0.075*self.rake_face_length)
+        theta = random.uniform(0, np.pi / 2)
+        crack_point = self.uppercrack[-1] + crack_length * self.ex
+        rotated_crack_point = hlp.rotate_point2D(crack_point, theta, self.uppercrack[-1])
+        crack_point, finish = self.checkCrackFinish(rotated_crack_point)
+        self.uppercrack = hlp.numpyAppend(self.uppercrack, crack_point)
+        uppercrack_rev = np.flip(self.uppercrack, axis=0)
+        self.crackPlot = hlp.numpyAppendArrayOfPoints(self.uppercrack, uppercrack_rev)
+        new_vertices = hlp.numpyInsertArrayOfPoints(self.vertices[0], self.crackPlot, int(self.crack_start))
         if self.finish:
             crit_index = hlp.getPointIndex(new_vertices, crack_point)
             new_vertices = new_vertices[crit_index:]
         self.appendVertices(new_vertices)
         self.fractures += 1
+
     
-    def initialCrack(self) -> None:
+    def initialCrack1(self) -> None:
         """Creates the first crack in the grain"""
         pod_from_rf = random.uniform(2, 3) * self.find_contact_length() * hlp.unit_vector(self.rake_face_vector())
         pod = self.rake_face[0] + pod_from_rf
@@ -138,14 +159,39 @@ class Grain2D:
         self.vertices = np.array([np.array(w) for w in old_vertices], dtype=object)
         self.fractured = True
         self.fractures += 1
+
+
+    def crack_propagation1(self) -> None:
+        '''Calculates new crack point depending on the existing crack
+        More detailed crack'''
+        crack_index = int(self.getCrackStart())
+        crack_base = hlp.get_vector(self.uppercrack[crack_index], self.uppercrack[crack_index + 1])
+        crack_base_length = np.linalg.norm(crack_base)
+        crack_direction = hlp.unit_vector(np.array([crack_base[1], -crack_base[0]]))
+        crack_length = random.uniform(0.5 * crack_base_length, crack_base_length)
+        crack_point = self.uppercrack[crack_index] + random.uniform(0.1*crack_base_length, 0.8*crack_base_length)* crack_base + crack_length * crack_direction
+        crack_point, finish = self.checkCrackFinish(crack_point)
+        self.uppercrack = hlp.numpyInsertPoint(self.uppercrack, crack_point, crack_index + 1)
+        new_vertices = hlp.numpyInsertArrayOfPoints(self.vertices[0], self.uppercrack, self.crack_start)
+        if self.finish:
+            crit_index = hlp.getPointIndex(new_vertices, crack_point)
+            new_vertices = new_vertices[crit_index:]
+        self.appendVertices(new_vertices)
+        self.fractures += 1
     
+
     def make_crack(self, F_c : float, F_n : float) -> None:
         """Checks fracture criteria and invokes function rankine stress exceeds tensile strength"""
-        if self.rankineCriterion(F_c, F_n, 0) > self.tensile_strength:
-            if self.fractured:
-                self.crack_propagation()
-            else:
-                self.initialCrack()
+        rankine_stress = self.rankineCriterion(F_c, F_n, 0)
+        if rankine_stress > self.tensile_strength:
+            while True:
+                if self.fractured:
+                    self.crack_propagation2()
+                else:
+                    self.initialCrack2()
+                if self.finish:
+                    break
+       
     
 
     def getCrackStart(self) -> int:

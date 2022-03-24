@@ -37,8 +37,6 @@ def polygonIntersection(subj, clip):
     '''Given 2 intersecting polygons, it returns the area of the intersection'''
     SCALING_FACTOR = 1000
     pc = pyclipper.Pyclipper()
-    # print("subj=", subj)
-    # print("clip=", clip)
     pc.AddPath(pyclipper.scale_to_clipper(subj, SCALING_FACTOR), pyclipper.PT_SUBJECT, True)
     pc.AddPath(pyclipper.scale_to_clipper(clip, SCALING_FACTOR), pyclipper.PT_CLIP, True)
     solution = pyclipper.scale_from_clipper(pc.Execute(pyclipper.CT_INTERSECTION, pyclipper.PFT_EVENODD, pyclipper.PFT_EVENODD), SCALING_FACTOR)
@@ -57,7 +55,10 @@ def getIntersectionPolygon(subj):
 
 
 def numpyInsertPoint(array1 : np.ndarray, array2 : np.ndarray, index : int):
-    '''python insert() but for numpy ndarray'''
+    '''python insert() but for numpy ndarray
+    
+    array1 -> array in which the point is inserted
+    array2 -> point which is to be inserted'''
     list1 = array1.tolist()
     list2 = array2.tolist()
     list1.insert(index, list2)
@@ -84,6 +85,16 @@ def numpyAppend(array1 : np.ndarray, array2 : np.ndarray):
     return arr
 
 
+def numpyAppendArrayOfPoints(array1 : np.ndarray, array2 : np.ndarray):
+    '''python append() but for numpy ndarray'''
+    list1 = array1.tolist()
+    list2 = array2.tolist()
+    for point in list2:
+        list1.append(point)
+    arr = np.array([np.array(x) for x in list1], dtype=object)
+    return arr
+
+
 def getPointIndex(array, point):
     for ind, p in enumerate(array):
         if (p == point).all():
@@ -106,8 +117,8 @@ def polygon_rotation(x, y, angle):
     x_new = [0, 0, 0, 0]
     y_new = [0, 0, 0, 0]
     for i in range(len(x)):
-        x_new[i] = np.cos(angle) * x[i] + (-np.sin(angle))*(y[i]-5)
-        y_new[i] = np.sin(angle)*x[i] + np.cos(angle) * (y[i]-5) + 5
+        x_new[i] = np.cos(angle) * x[i] + (-np.sin(angle))*(y[i])
+        y_new[i] = np.sin(angle)*x[i] + np.cos(angle) * (y[i])
     return x_new, y_new
 
 
@@ -136,3 +147,17 @@ def unit_vector(vector):
     if np.linalg.norm(vector) == 0:
         raise Exception("Initial vector has no length!")
     return vector / np.linalg.norm(vector)
+
+
+def rotate_point2D(point : np.ndarray, theta, rot_origin = np.array([0, 0])) -> np.ndarray:
+    rot = np.array([[np.cos(theta), -np.sin(theta)],[np.sin(theta), np.cos(theta)]])
+    temp = point
+    temp[0] = temp[0] - rot_origin[0]
+    temp[1] = temp[1] - rot_origin[1]
+    point[0] = np.cos(theta) * temp[0] + -np.sin(theta) * temp[1]
+    point[1] = np.sin(theta)*point[0] + np.cos(theta) * point[1]
+    point[0] = point[0] + rot_origin[0]
+    point[1] = point[1] + rot_origin[1]
+    return point
+
+
