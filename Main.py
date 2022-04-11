@@ -1,46 +1,30 @@
 import time
 
-import matplotlib.pyplot as plt
-import numpy as np
+import trimesh
 
-import grain
 import helpers as hlp
-
-# Pseudo algotithm for fracture wear on a single abrasive grain (triangle)
+from geometrics import Vector
+from grain import Grain3D
+from wear_algorithm import macro_fracture
 
 # Input parameters
 F_C = 3000  # Cutting Force in Newton
 F_N = 1000  # Normal Force in Newton
-P_DEPTH = 0.5  # penetration depth
+P_DEPTH = 0.07  # penetration depth
+TENSILE_STRENGTH = 300
+cutting_direction = Vector(1, 2, 0)
 
 
-# Set grain vertices
+# Make grain instance
+mesh = trimesh.load("./Grains/Cuboctahedron.stl")
+grain = Grain3D(mesh)
+hlp.plot_trimesh(grain.mesh)
 
-b = np.array(
-    [[-1, 0], [-3, 2], [-3, 4], [-1, 6], [1, 6], [3, 4], [3, 2], [1, 0]], dtype=float
-)
-
-# Make Grain2D Instance
-grain = grain.Grain2D(b)
-# set initial values depending on the forces and the penetration depth
-grain.initializeValues(F_C, F_N, P_DEPTH)
-
-# Simulation
+# time start
 initial_time = time.time()
-grain.make_crack(F_C, F_N)
+grain.mesh = macro_fracture(
+    grain, F_C, F_N, P_DEPTH, cutting_direction, TENSILE_STRENGTH
+)
 end_time = time.time()
-time1 = end_time - initial_time
-print(f"It took {grain.fractures} steps and {time1} seconds to crack through")
-
-# Plotting
-fig, (ax1, ax2) = plt.subplots(1, 2)
-x1, y1 = hlp.polygon_to_plot(grain.vertices[0])
-x2, y2 = hlp.polygon_to_plot(grain.vertices[-1])
-ax1.plot(x1, y1)
-ax1.set_aspect("equal", "box")
-ax1.set_title("Unmodified abrasive grain", fontsize=10)
-ax2.plot(x2, y2)
-ax2.set_aspect("equal", "box")
-ax2.set_title("Abrasive grain after σ_critical < σ_result", fontsize=10)
-
-plt.show()
+print(f"The wear algorithm took {end_time-initial_time} seconds")
+hlp.plot_trimesh(grain.mesh)

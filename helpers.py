@@ -1,43 +1,47 @@
-import operator
-from math import cos, sin
-
+import meshcut
 import numpy as np
 import pyclipper
-from matplotlib import pyplot
+import trimesh
+from matplotlib import pyplot as plt
 from mpl_toolkits import mplot3d
-from shapely.geometry import LineString, Point, Polygon, LinearRing
+from shapely.geometry import Polygon
+
+from geometrics import Vector
+from grain import Grain3D
+
+ex = np.array([1, 0], dtype=float)  # Unit vector in x-direction
+ey = np.array([0, 1], dtype=float)  # Unit vector in y-direction
 
 
-def get_vector_miny(array: np.ndarray) -> np.ndarray:
-    y = []
-    for ind, value in enumerate(array):
-        y.append(value[1])
-    y_ind, y_value = min(enumerate(y), key=operator.itemgetter(1))
-    return array[y_ind]
+def plane_side(point: list, coefficents: np.ndarray) -> float:
+    """Returns result of the scalar equation of plane ax + by + cz - d
+
+    Args:
+        point (list): [x, y, z]
+        coefficents (np.ndarray): [a, b, c, d]
+
+    Returns:
+        float: ax + by + cz - d
+    """
+    return (
+        coefficents[0] * point[0]
+        + coefficents[1] * point[1]
+        + coefficents[2] * point[2]
+        - coefficents[3]
+    )
 
 
+def polygonIntersection(subj: np.ndarray, clip: np.ndarray):
+    """Given 2 intersecting polygons, it returns the intersection polygon and the area of the intersection polygon
 
-def get_vector_maxx(array: np.ndarray) -> np.ndarray:
-    x = []
-    for ind, value in enumerate(array):
-        x.append(value[0])
-    x_ind, x_value = max(enumerate(x), key=operator.itemgetter(1))
-    return array[x_ind]
+    Args:
+        subj (np.ndarray): Array of points of the polygon which is to be clipped
+        clip (np.ndarray): Array of points of the polygon which the subject is clipped with
 
-
-def polygon_to_plot(polygon):
-    x = np.array([])
-    y = np.array([])
-    for ind, point in enumerate(polygon):
-        x = np.append(x, point[0])
-        y = np.append(y, point[1])
-    x = np.append(x, polygon[0][0])
-    y = np.append(y, polygon[0][1])
-    return x, y
-
-
-def polygonIntersection(subj, clip):
-    """Given 2 intersecting polygons, it returns the area of the intersection"""
+    Returns:
+        list: list of points of the intersection polygon,
+        float: area of the intersection polygon
+    """
     SCALING_FACTOR = 1000
     pc = pyclipper.Pyclipper()
     pc.AddPath(
@@ -56,175 +60,114 @@ def polygonIntersection(subj, clip):
     return solution[0], pgon.area
 
 
-def getIntersectionPolygon(subj):
-    clip = subj.cuttingLine()
-    subj = subj.vertices[-1]
-    SCALING_FACTOR = 1000
-    pc = pyclipper.Pyclipper()
-    pc.AddPath(
-        pyclipper.scale_to_clipper(subj, SCALING_FACTOR), pyclipper.PT_SUBJECT, True
+def cuttingRectangle(grain):
+    """Returns a rectangle to be intersected with the grain to get the contact length depending on the penetration depth
+
+    Args:
+        grain (Grain2D): grain that has to be cut
+
+    Returns:
+        np.ndarray: edges of the rectangle
+    """
+    origin = grain.cutting_edge + grain.penetration_depth * ey
+    left_upper = origin - 10 * ex
+    right_upper = origin + 10 * ex
+    right_lower = right_upper - 2 * grain.penetration_depth * ey
+    left_lower = left_upper - 2 * grain.penetration_depth * ey
+    return np.array([left_upper, right_upper, right_lower, left_lower])
+
+
+def cuttingRectangle3D(grain, p_depth):
+    """Returns a rectangle to be intersected with the grain to further calculate the cutting area
+
+    Args:
+        grain (Grain3D): Grain to be intersected
+        p_depth (float): Penetration depth of the grain into the workpiece
+
+    Returns:
+        np.ndarray: edges of the rectangle
+    """
+    origin = np.array([0, (grain.cutting_edge[2] + p_depth)])
+    left_upper = origin - 10 * ex
+    right_upper = origin + 10 * ex
+    right_lower = right_upper - 2 * p_depth * ey
+    left_lower = left_upper - 2 * p_depth * ey
+    return np.array([left_upper, right_upper, right_lower, left_lower])
+
+
+def get_A_ortho(grain: Grain3D, D: float) -> float:
+    """Calculates the area that is orthogonal to the cutting area
+
+    Args:
+        grain (Grain3D): Instance of Grain3D
+        D (float): Penetration depth of the grain into the workpiece
+
+    Returns:
+        float: Area of the grain at the workpiece surface
+    """
+    z_value = grain.cutting_edge[2] + D
+    plane_orig = (0, 0, z_value)
+    plane_norm = (0, 0, 1)
+    plane = meshcut.Plane(plane_orig, plane_norm)
+    mesh = meshcut.TriangleMesh(grain.vertices, grain.faces)
+    P = meshcut.cross_section_mesh(mesh, plane)
+    A_ortho = Polygon(P[0])
+    return A_ortho.area
+
+
+def get_A_cut(grain: Grain3D, P_DEPTH: float, cutting_direction: Vector) -> float:
+    """Calculates the penetrated area of the grain, perpendicular to the cutting direction
+
+    Args:
+        grain (Grain3D): Instance of Grain3D
+        P_DEPTH (float): Penetration depth of the grain into the workpiece
+        cutting_direction (Vector): Moving direction of the grain
+
+    Returns:
+        float: Cutting area
+    """
+    cutting_direction.project_onto("xy")
+    area = list(
+        trimesh.path.polygons.projected(
+            grain.mesh, cutting_direction.value
+        ).exterior.coords
     )
-    pc.AddPath(
-        pyclipper.scale_to_clipper(clip, SCALING_FACTOR), pyclipper.PT_CLIP, False
-    )
-    solution = pyclipper.scale_from_clipper(
-        pc.Execute(
-            pyclipper.CT_INTERSECTION, pyclipper.PFT_EVENODD, pyclipper.PFT_EVENODD
-        ),
-        SCALING_FACTOR,
-    )
+    cutting_rectangle = cuttingRectangle3D(grain, P_DEPTH)
+    intersection, A_cut = polygonIntersection(area, cutting_rectangle)
+    return A_cut
 
 
-def numpyInsertPoint(array1: np.ndarray, array2: np.ndarray, index: int):
-    """python insert() but for numpy ndarray
+def cross_section(grain: Grain3D, norm: np.ndarray, orig: np.ndarray) -> np.ndarray:
+    """Gets a cross section of a 3D mesh at a given plane
 
-    array1 -> array in which the point is inserted
-    array2 -> point which is to be inserted"""
-    list1 = array1.tolist()
-    list2 = array2.tolist()
-    list1.insert(index, list2)
-    arr = np.array([np.array(x) for x in list1], dtype=object)
-    return arr
+    Args:
+        grain (Grain3D): Instance of Grain3D
+        norm (np.ndarray): Normal vector to the plane that cuts the mesh
+        orig (np.ndarray): Origin of the plane that cuts the mesh
 
-
-def numpyInsertArrayOfPoints(array1: np.ndarray, array2: np.ndarray, index: int):
-    """python insert() but for numpy ndarray"""
-    list1 = array1.tolist()
-    list2 = array2.tolist()
-    for ind, point in enumerate(list2):
-        list1.insert(index + ind, point)
-    arr = np.array([np.array(x) for x in list1], dtype=object)
-    return arr
+    Returns:
+        np.ndarray: Array of points of the resulting cutting polygon
+    """
+    plane = meshcut.Plane(orig, norm)
+    mesh = meshcut.TriangleMesh(grain.vertices, grain.faces)
+    P = meshcut.cross_section_mesh(mesh, plane)
+    return P[0]
 
 
-def numpyAppend(array1: np.ndarray, array2: np.ndarray):
-    """python append() but for numpy ndarray"""
-    list1 = array1.tolist()
-    list2 = array2.tolist()
-    list1.append(list2)
-    arr = np.array([np.array(x) for x in list1], dtype=object)
-    return arr
+def plot_trimesh(mesh: trimesh.base.Trimesh):
+    """Plots a mesh of type Trimesh in a 3D coordinate system
 
-
-def numpyAppendArrayOfPoints(array1: np.ndarray, array2: np.ndarray):
-    """python append() but for numpy ndarray"""
-    list1 = array1.tolist()
-    list2 = array2.tolist()
-    for point in list2:
-        list1.append(point)
-    arr = np.array([np.array(x) for x in list1], dtype=object)
-    return arr
-
-
-def getPointIndex(array, point):
-    for ind, p in enumerate(array):
-        if (p == point).all():
-            return ind
-
-
-def mesh_rotation(stl_mesh, theta):
-    """Rotates mesh by angle theta around z-axis"""
-    length = len(stl_mesh.vectors)
-    rot = np.array(
-        [[cos(theta), -sin(theta), 0], [sin(theta), cos(theta), 0], [0, 0, 1]]
-    )
-    for face in range(length):
-        for vertice in range(3):
-            stl_mesh.vectors[face][vertice] = np.dot(
-                rot, stl_mesh.vectors[face][vertice]
-            )
-    return stl_mesh
-
-
-def polygon_rotation(x, y, angle):
-    """Rotates 2D-Polygon around angle"""
-    x_new = [0, 0, 0, 0]
-    y_new = [0, 0, 0, 0]
-    for i in range(len(x)):
-        x_new[i] = np.cos(angle) * x[i] + (-np.sin(angle)) * (y[i])
-        y_new[i] = np.sin(angle) * x[i] + np.cos(angle) * (y[i])
-    return x_new, y_new
-
-
-def plot_mesh(mesh):
-    """Plots mesh in a 3D-Plot"""
-    figure = pyplot.figure()
+    Args:
+        mesh (trimesh.base.Trimesh): Mesh to be plotted
+    """
+    figure = plt.figure()
     axes = figure.add_subplot(projection="3d")
-    axes.add_collection3d(mplot3d.art3d.Poly3DCollection(mesh.vectors, alpha=0.7, edgecolors='k'))
-    scale = mesh.points.flatten()
+    axes.add_collection3d(
+        mplot3d.art3d.Poly3DCollection(mesh.triangles, alpha=0.7, edgecolors="k")
+    )
+    scale = mesh.vertices.flatten()
     axes.auto_scale_xyz(scale, scale, scale)
-    pyplot.show()
-
-
-def get_angle(v1, v2):
-    """Returns angle between vectors v1 and v2"""
-    return np.arccos((np.dot(v1, v2)) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
-
-
-def get_vector(start, end):
-    """Returns vector from start point to end point"""
-    return np.subtract(end, start)
-
-
-def unit_vector(vector):
-    """Normalizes vector so that |vector| == 1"""
-    if np.linalg.norm(vector) == 0:
-        raise Exception("Initial vector has no length!")
-    return vector / np.linalg.norm(vector)
-
-
-def rotate_point2D(point: np.ndarray, theta, rot_origin=np.array([0, 0])) -> np.ndarray:
-    rot = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-    temp = point
-    temp[0] = temp[0] - rot_origin[0]
-    temp[1] = temp[1] - rot_origin[1]
-    point[0] = np.cos(theta) * temp[0] + -np.sin(theta) * temp[1]
-    point[1] = np.sin(theta) * point[0] + np.cos(theta) * point[1]
-    point[0] = point[0] + rot_origin[0]
-    point[1] = point[1] + rot_origin[1]
-    return point
-
-
-def line_polygon_intersection(polygon: np.ndarray, line: np.ndarray):
-    pass
-
-
-def get_point_data(polygon, int_point):
-    point = Point(int_point)
-    for ind, test_point in enumerate(polygon):
-        line = LineString([polygon[ind - 1], test_point])
-        if line.distance(point) < 1e-8:
-            return ind - 1, polygon[ind - 1]
-
-
-def same_list_new_start(array, index):
-    temp1 = array[index:]
-    temp2 = array[:index]
-    return np.concatenate((temp1, temp2), axis=0)
-
-
-def is_clockwise(polygon : np.ndarray) -> bool:
-    ring = LinearRing(polygon)
-    if ring.is_ccw:
-        return False
-    else:
-        return True
-
-def get_cutting_edge(vertices : np.ndarray) -> np.ndarray:
-    x = []
-    y = []
-    for ind, value in enumerate(vertices):
-        y.append(value[1])
-    y_ind, y_value = min(enumerate(y), key=operator.itemgetter(1))
-    min_indexes = [i for i, z in enumerate(y) if z == y_value]
-    for ind in min_indexes:
-        x.append(vertices[ind][0])
-    x_ind, x_value = min(enumerate(x), key=operator.itemgetter(1))
-    min_ind = min_indexes[x_ind]
-    return vertices[min_ind]
-
-    
-
-
-
-
+    axes.set_xlabel("X")
+    axes.set_ylabel("Y")
+    axes.set_zlabel("Z")
+    plt.show()
