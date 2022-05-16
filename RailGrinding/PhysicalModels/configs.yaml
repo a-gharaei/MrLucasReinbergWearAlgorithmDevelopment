@@ -1,0 +1,11 @@
+drive_system:
+  motor_efficiency: 0.9  # unitless efficiency of the electric motor
+  spindle_voltage: 520  # [V] nominal voltage of the spindle
+  slip_factor: 0.8 # unitless slip of the asynchronous motor
+
+  surface_lower_chamber: 785 # [N/bar] surface of the lower chamber of the pneumatic cylinder
+  surface_upper_chamber: 735 # [N/bar] surface of the upper chamber of the pneumatic cylinder
+  pressure_upper_chamber: 1.6  # 2.7, # [bar] pressure of the upper chamber of the pneumatic cylinder
+  mass_force: 1962  # mass force of the spindle
+
+

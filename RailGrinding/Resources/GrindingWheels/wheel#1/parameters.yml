@@ -1,0 +1,15 @@
+calculated_info:
+  average_grains_central_penetration[mm]: 0.627453691084683
+  average_grains_volume[mm3]: 0.8084595582705372
+  average_radius[m]: 0.1
+  grain_volume: 0.8084595799446106
+  max_grains_central_penetration[mm]: 0.6999892592430115
+  min_grains_central_penetration[mm]: 0.49498793482780457
+input_parameters:
+  grain_stl_path: ../Resources/Grains/Cuboctahedron.stl
+  number_of_grains[-]: 20000
+  random_seed_number[-]: 0
+  save_wheel: true
+  template_wheel_number: 1.0
+  wheel_inner_radius[mm]: 75.0
+  wheel_outer_radius[mm]: 125.0

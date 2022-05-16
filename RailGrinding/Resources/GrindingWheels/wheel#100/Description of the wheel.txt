@@ -1,0 +1,2 @@
+This is the standard wheel with dimension of ( width = 1 mm, length = 1 mm, height =1 mm)
+It is posisioned at 180 in X-Y Plane where its center is 125 mm far from wheel rotational axis.
