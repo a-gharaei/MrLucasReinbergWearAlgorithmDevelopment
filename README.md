@@ -4,7 +4,7 @@ This project is about developing a macro fracture wear algorithm for a kinematic
 
 ## Installation
 
-1. Clone the repository in your desired directory
+1. Clone the fracture_wear repository in your desired directory
 2. In the terminal navigate to the project directory
 
 ```bash
