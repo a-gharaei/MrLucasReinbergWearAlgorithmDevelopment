@@ -25,5 +25,5 @@ pipenv install requirements.txt
 ## Usage
 
 Main.py contains a simple example. Just run Main.py and see the macro fracture of a grain!
-If you want to include it in a simlation, invoke the function apply_macro_fracture_wear() from the wear_models.py file.
+If you want to include it in a simlation, invoke the function apply_macro_fracture_wear() from the wear_models.py file in your main simulation loop.
 
