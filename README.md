@@ -7,9 +7,9 @@ This project is about developing a macro fracture wear algorithm for a kinematic
 1. Clone the repository in your desired directory
 2. In the terminal navigate to the project directory
 
-'''bash
+```bash
 cd "C:\some_directory\fracture_wear"
-'''
+```
 3. Make a new virtual environment using [pipenv](https://pypi.org/project/pipenv/)
 
 ```bash
@@ -18,9 +18,9 @@ pipenv shell
 
 Then install the required packages
 
-'''bash
+```bash
 pipenv install requirements.txt
-'''
+```
 
 ## Usage
 
