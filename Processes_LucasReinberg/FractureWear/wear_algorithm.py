@@ -23,10 +23,10 @@ def macro_fracture(grain, F_C, F_N, P_DEPTH, cutting_dir, tensile_strength):
     mesh = mesh_conversion.from_mesh_to_trimesh(original_mesh)
     if not mesh.is_watertight:
         print("mesh is not watertight")
-
     cutting_direction = geom.Vector(cutting_dir.x(), cutting_dir.y(), cutting_dir.z())
     grain3d = Grain3D(mesh)
     rotated_mesh, rotation_angle = gf.align_grain(grain3d, cutting_direction)
+    trimesh.repair.fix_normals(rotated_mesh)
     grain3d.update_mesh(rotated_mesh)
     rankine, cut_polygon, ortho_polygon = rankine_stress(
         grain3d, F_C, F_N, P_DEPTH, geom.Vector(-1, 0, 0)
@@ -43,7 +43,7 @@ def macro_fracture(grain, F_C, F_N, P_DEPTH, cutting_dir, tensile_strength):
         return 0, rankine
     initial_volume = mesh.volume
     # Align cutting direction with x-axis by rotating the mesh
-    # rotated_mesh, rotation_angle = gf.align_grain(grain, cutting_dir)
+    rotated_mesh, rotation_angle = gf.align_grain(grain3d, cutting_direction)
 
     # Make Grain2D instance for crack calculations
     grain2d = Grain2D(gf.project_grain_on_xz(rotated_mesh), P_DEPTH)
@@ -66,9 +66,11 @@ def macro_fracture(grain, F_C, F_N, P_DEPTH, cutting_dir, tensile_strength):
 
     # Generate mesh from new vertices
     new_mesh = gf.generate_mesh(new_vertices)
+    trimesh.repair.fix_normals(new_mesh)
 
     # Rotate mesh back to original position
     fractured_mesh = geom.mesh_rotation(new_mesh, -rotation_angle, "z")
+    trimesh.repair.fix_normals(fractured_mesh)
     new_mesh = mesh_conversion.from_trimesh_to_mesh(fractured_mesh, original_mesh_pose)
     grain = grain.update_mesh(new_mesh)
     removed_volume = initial_volume - fractured_mesh.volume

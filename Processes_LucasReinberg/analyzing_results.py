@@ -2,6 +2,7 @@ import os
 from operator import pos
 
 import pandas as pd
+import trimesh
 from matplotlib.colors import LightSource
 from scipy import signal
 from SimulationToolbox.Geometry.geometric_objects import *
@@ -17,6 +18,9 @@ from SimulationToolbox.Simulation.physical_models import (
 from SimulationToolbox.Visualization.visualization import *
 from SimulationToolbox.Visualization.visualization_objects import *
 
+import FractureWear.helpers as hlp
+from mesh_conversion import from_mesh_to_trimesh
+
 configuration.do_plot = True
 
 # Paths for different processes
@@ -25,7 +29,7 @@ disc_cutting = r"./SimulationResults/DiscCutting/"
 single_grain_scratch_test = r"./SimulationResults/SingleGrainScratch/"
 
 # choose process to analyse
-path = single_grain_scratch_test
+path = disc_cutting
 
 wp = Workpiece.load_from_disk(os.path.join(path, "wp_after_grinding.pkl"))
 tool = Tool.load_from_disk(os.path.join(path, "tool_after_grinding.pkl"))
@@ -45,6 +49,8 @@ with open(os.path.join(path, "fractured_grains.pkl"), "rb") as file:
     fractured_grains_list = dill.load(file)
 with open(os.path.join(path, "fracture_data.pkl"), "rb") as file:
     fracture_data = dill.load(file)
+with open(os.path.join(path, "negative_volume_grains.pkl"), "rb") as file:
+    negative_grains = dill.load(file)
 # plot and analyze forces
 
 # Calculate tool forces in global frame
@@ -129,13 +135,14 @@ fracture_df = pd.DataFrame(
     columns=["Rankine stress", "Penetration Depth", "Cutting Force", "Normal Force"],
 )
 print(fracture_df)
+fracture_df.to_excel("fracture_data.xlsx", sheet_name="first_try")
+
 
 # plot material removed
 fig, ax = plt.subplots()
 ax.plot(fracture_wear_model_results[0])
 ax.set_xlabel("Time steps")
 ax.set_ylabel("volume removed ($mm^3$)")
-ax.set_title("Volume removed through fracture wear per time step")
 fig.tight_layout()
 
 # plot rankine stress and penetration depth
@@ -156,40 +163,76 @@ plot_workpiece(wp, WorkpiecePlotConfig.default(wp))
 z_off = -75.5
 tol = 0.01
 # topography measure
-topography = wp.to_topography(tol, z_off)
-fig = plt.figure()
-ax = fig.add_subplot(111, projection="3d")
-surf = ax.plot_surface(
-    topography.X,
-    topography.Y,
-    topography.Z,
-    linewidth=0,
-    edgecolor="none",
-    antialiased=True,
-    cmap=plt.cm.jet,
-)
-fig.colorbar(surf, shrink=0.5, aspect=5)
-ax.set_title("Workpiece Topography")
-ax.set_xlabel("x axis (m)")
-ax.set_ylabel("y axis (m)")
-ax.set_zlabel("z axis (m)")
+# topography = wp.to_topography(tol, z_off)
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection="3d")
+# surf = ax.plot_surface(
+#     topography.X,
+#     topography.Y,
+#     topography.Z,
+#     linewidth=0,
+#     edgecolor="none",
+#     antialiased=True,
+#     cmap=plt.cm.jet,
+# )
+# fig.colorbar(surf, shrink=0.5, aspect=5)
+# ax.set_title("Workpiece Topography")
+# ax.set_xlabel("x axis (m)")
+# ax.set_ylabel("y axis (m)")
+# ax.set_zlabel("z axis (m)")
 # ax.set_xlim3d(0, 10)
 # ax.set_ylim3d(0, 10)
 # ax.set_zlim3d(0, 10)
 
 # Calculate and plot Sa
-topography = wp.to_topography(tol, z_off)
-kernel = np.ones((10, 10)) * 1 / (10 * 10)
-mean = signal.convolve2d(topography.Z, kernel, boundary="symm", mode="same")
-diffs = np.abs(topography.Z - mean)
-Sa = signal.convolve2d(diffs, kernel, boundary="symm", mode="same")
+# topography = wp.to_topography(tol, z_off)
+# kernel = np.ones((10, 10)) * 1 / (10 * 10)
+# mean = signal.convolve2d(topography.Z, kernel, boundary="symm", mode="same")
+# diffs = np.abs(topography.Z - mean)
+# Sa = signal.convolve2d(diffs, kernel, boundary="symm", mode="same")
 
 # Plot shaded Topography and Sa in comparison
-fig, axs = plt.subplots(ncols=1, nrows=2)
-ls = LightSource(azdeg=315, altdeg=45)
-axs[0].imshow(ls.hillshade(topography.Z, vert_exag=1), cmap="gray")
-axs[0].set_title("Workpiece Surface from top")
-img = axs[1].imshow(Sa, cmap=plt.cm.jet)
-axs[1].set_title("Roughness: Sa [1] with Kernel size 1x1")
-bar = plt.colorbar(img)
-bar.set_label("Sa[1]")
+# fig, axs = plt.subplots(ncols=1, nrows=2)
+# ls = LightSource(azdeg=315, altdeg=45)
+# axs[0].imshow(ls.hillshade(topography.Z, vert_exag=1), cmap="gray")
+# axs[0].set_title("Workpiece Surface from top")
+# img = axs[1].imshow(Sa, cmap=plt.cm.jet)
+# axs[1].set_title("Roughness: Sa [1] with Kernel size 1x1")
+# bar = plt.colorbar(img)
+# bar.set_label("Sa[1]")
+
+final_negative_grains = list(filter(None, negative_grains))
+for grains in final_negative_grains:
+    grain_start = from_mesh_to_trimesh(grains[0][0])
+    grain_end = from_mesh_to_trimesh(grains[0][1])
+    trimesh.repair.fix_normals(grain_start)
+    trimesh.repair.fix_normals(grain_end)
+    if grain_start.is_convex and grain_end.is_convex:
+        continue
+    if grain_start.volume - grain_end.volume > 0:
+        continue
+    print(f"Input grain volume: {grain_start.volume} is convex:{grain_start.is_convex}")
+    print(f"output grain volume: {grain_end.volume} is convex: {grain_end.is_convex}")
+    print(f"removed volume: {grain_start.volume - grain_end.volume}")
+    # start grain plot
+    figure, axes = plt.subplots(1, 2, subplot_kw=dict(projection="3d"))
+    axes[0].add_collection3d(
+        mplot3d.art3d.Poly3DCollection(grain_start.triangles, alpha=0.7, edgecolors="k")
+    )
+    scale = grain_start.vertices.flatten()
+    axes[0].auto_scale_xyz(scale, scale, scale)
+    axes[0].set_xlabel("X [mm]")
+    axes[0].set_ylabel("Y [mm]")
+    axes[0].set_zlabel("Z [mm]")
+    axes[0].set_title("Input mesh")
+    # end grain plot
+    axes[1].add_collection3d(
+        mplot3d.art3d.Poly3DCollection(grain_end.triangles, alpha=0.7, edgecolors="k")
+    )
+    scale = grain_end.vertices.flatten()
+    axes[1].auto_scale_xyz(scale, scale, scale)
+    axes[1].set_xlabel("X [mm]")
+    axes[1].set_ylabel("Y [mm]")
+    axes[1].set_zlabel("Z [mm]")
+    axes[1].set_title("Output mesh")
+    plt.show()

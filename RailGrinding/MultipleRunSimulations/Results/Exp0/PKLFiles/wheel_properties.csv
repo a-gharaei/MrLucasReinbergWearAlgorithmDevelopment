@@ -1,0 +1,2 @@
+,Unnamed: 0,grain_type,number_of_grains,random_seed_number,wheel_inner_radius,wheel_outer_radius,average_grains_central_penetration,min_grains_central_penetration,max_grains_central_penetration,average_grains_volume,average_radius
+0,0,None,1,0,75.0,125.0,0.8084595793601087,0.6227308511734009,0.6227308511734009,0.8084595793601087,0.1

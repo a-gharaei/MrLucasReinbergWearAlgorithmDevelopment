@@ -1,12 +1,14 @@
 """This module is devoted to the calculation of grinding temperatures of grains ."""
 from typing import List
-import numpy as np
+
 import dill
-
+import numpy as np
+from Resources.Workpieces.workpiece_factory import WorkpieceMaterialProperties
 from SimulationToolbox.Simulation.material_removal import MaterialRemovalResult
-from SimulationToolbox.Utilities.helpers import InputAreNotTheSameDataType, default_precision
-
-from RailGrinding.Resources.Workpieces.workpiece_factory import WorkpieceMaterialProperties
+from SimulationToolbox.Utilities.helpers import (
+    InputAreNotTheSameDataType,
+    default_precision,
+)
 
 
 class GrainTemperatureModelResult:

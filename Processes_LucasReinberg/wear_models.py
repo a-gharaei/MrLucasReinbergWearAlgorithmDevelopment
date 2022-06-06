@@ -15,7 +15,7 @@ from FractureWear.wear_algorithm import macro_fracture
 
 # Example wear model for wear model core tests
 def wear_magnitude_as_penetration_depth_percentage(
-    penetration_depth: float, percentage: float = 5
+    penetration_depth: float, percentage: float = 1
 ) -> float:
     return penetration_depth * percentage / 100
 
@@ -52,18 +52,21 @@ def apply_fracture_wear_model(
     tool: Tool,
     mat_remover_result: MaterialRemovalResult,
     grain_force_result: GrainForceModelResult,
+    ultimate_tensile_stress: float,
 ):
     total_removed_volume = 0
     rankine_stresses = []
     penetration_depths = []
     fractured_grains = []
     fracture_informations = []
+    added_volume_list = []
     for grain_idx, grain in enumerate(tool.grains):
         if mat_remover_result.penetration_depths[grain_idx] == 0:
             continue
         penetration_depth = mat_remover_result.penetration_depths[grain_idx]
         cutting_force = grain_force_result.grain_forces[grain_idx].cutting_force.norm()
         normal_force = grain_force_result.grain_forces[grain_idx].normal_force.norm()
+        original_grain_mesh = grain.get_mesh()
 
         cutting_direction = mat_remover_result.grains_displacement[
             grain_idx
@@ -75,14 +78,16 @@ def apply_fracture_wear_model(
             normal_force,
             penetration_depth,
             cutting_direction,
-            300,
+            ultimate_tensile_stress,
         )
-        if rankine > 300:
+        if rankine > ultimate_tensile_stress:
             print("fracture occured")
             fractured_grains.append(tool.grains[grain_idx])
             fracture_informations.append(
                 [rankine, penetration_depth, cutting_force, normal_force]
             )
+            if removed_volume < 0:
+                added_volume_list.append([original_grain_mesh, grain.get_mesh()])
         total_removed_volume += removed_volume
         rankine_stresses.append(rankine)
         penetration_depths.append(penetration_depth)
@@ -92,4 +97,5 @@ def apply_fracture_wear_model(
         penetration_depths,
         fractured_grains,
         fracture_informations,
+        added_volume_list,
     )

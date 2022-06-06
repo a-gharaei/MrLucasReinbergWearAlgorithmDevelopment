@@ -1,11 +1,12 @@
 """This module is devoted to the calculation of wear of grains ."""
 
-from SimulationToolbox.Simulation.material_removal import *
-from SimulationToolbox.Simulation.wear_models import *
 from typing import *
 
+from SimulationToolbox.Simulation.material_removal import *
+from SimulationToolbox.Simulation.wear_models import *
+
 # Example wear model for wear model core tests
-from RailGrinding.PhysicalModels.takazawa_temperature_model import GrainTemperatureModelResult
+from PhysicalModels.takazawa_temperature_model import GrainTemperatureModelResult
 
 
 def wear_magnitude_as_penetration_depth_percentage(penetration_depth: float, percentage: float = 1) -> float:

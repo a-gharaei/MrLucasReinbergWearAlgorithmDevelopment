@@ -1,13 +1,16 @@
 from collections import defaultdict
 from typing import List
+
 import dill
 import numpy as np
 import pandas as pd
-
 from SimulationToolbox.Geometry.geometry import PoseTrajectory
-from SimulationToolbox.Simulation.physical_models import ToolForceModelResultListFloat, ToolForceModelResult
+from SimulationToolbox.Simulation.physical_models import (
+    ToolForceModelResult,
+    ToolForceModelResultListFloat,
+)
 
-from RailGrinding.PhysicalModels.drive_system import *
+from PhysicalModels.drive_system import *
 
 
 def calculate_average_forces(tool_forces_array, controller_timing):

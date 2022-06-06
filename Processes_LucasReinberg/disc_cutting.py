@@ -121,6 +121,7 @@ wear_model_results = AttritiousWearModelResultList([], [])
 fracture_wear_results = [[], [], []]
 fractured_grains = []
 fracture_data = []
+added_volume_data = []
 
 # Initiate lists for animation input collection
 if animate:
@@ -153,7 +154,7 @@ for idx, current_tool_pose in enumerate(kin.ToolTrajectory.poses):
         tool, wear_magnitude_as_penetration_depth_percentage, mat_remover_result
     )
 
-    apply_attritious_wear(wear_model_result, tool, mat_remover_result, False)
+    # apply_attritious_wear(wear_model_result, tool, mat_remover_result, False)
 
     # apply fracture wear
     (
@@ -162,6 +163,7 @@ for idx, current_tool_pose in enumerate(kin.ToolTrajectory.poses):
         penetration_depths,
         fractured_grains_per_timestep,
         fracture_informations,
+        added_volume_grains,
     ) = apply_fracture_wear_model(tool, mat_remover_result, grain_force_model_result)
     if rankine_stresses:
         rankine_stress_mean = mean(rankine_stresses)
@@ -172,6 +174,7 @@ for idx, current_tool_pose in enumerate(kin.ToolTrajectory.poses):
     fracture_wear_results[0].append(total_removed_volume)
     fractured_grains.extend(fractured_grains_per_timestep)
     fracture_data.extend(fracture_informations)
+    added_volume_data.append(added_volume_grains)
 
     # Collecting wp/tool instances for animation (every 50 steps)
     if animate and idx % 50 == 1:
@@ -218,6 +221,8 @@ with open(os.path.join(path, "fractured_grains.pkl"), "wb") as file:
     dill.dump(fractured_grains, file)
 with open(os.path.join(path, "fracture_data.pkl"), "wb") as file:
     dill.dump(fracture_data, file)
+with open(os.path.join(path, "negative_volume_grains.pkl"), "wb") as file:
+    dill.dump(added_volume_data, file)
 
 
 # ---------------------------- Animation Option ----------------------------------
